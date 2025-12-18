@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use Illuminate\pagination\paginator;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Facades\URL; // <-- SAYA TAMBAHKAN INI
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -25,5 +26,10 @@ class AppServiceProvider extends ServiceProvider
     public function boot()
     {
         Paginator::useBootstrap();
+
+        // <-- SAYA TAMBAHKAN INI: Paksa HTTPS saat di Railway (Production)
+        if(config('app.env') === 'production') {
+            URL::forceScheme('https');
+        }
     }
 }
