@@ -18,6 +18,12 @@ use App\Http\Controllers\CetakLaporanController;
 use App\Http\Controllers\PengembalianController;
 use App\Http\Controllers\RiwayatPinjamController;
 
+/*
+|--------------------------------------------------------------------------
+| Web Routes
+|--------------------------------------------------------------------------
+*/
+
 Route::get('/', function () {
     return view('auth.login');
 });
@@ -36,77 +42,140 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/pengembalian', [PengembalianController::class,'pengembalian']);
 });
 
-// --- 👇 JURUS ANTI-GAGAL: BUAT TABEL MANUAL SATU PER SATU 👇 ---
+// --- 👇 JURUS PAMUNGKAS: VERSI LENGKAP 100% SESUAI SQL 👇 ---
 Route::get('/migrasi-darurat', function () {
     try {
         Artisan::call('config:clear');
 
-        // 1. Hapus tabel lama jika ada agar bersih (Urutan hapus harus benar karena ada relasi)
+        // 1. Matikan pengecekan relasi & hapus tabel lama agar bersih
         Schema::disableForeignKeyConstraints();
-        Schema::dropIfExists('profile');
-        Schema::dropIfExists('riwayat_pinjam');
-        Schema::dropIfExists('kategori_buku');
-        Schema::dropIfExists('buku');
-        Schema::dropIfExists('kategori');
-        Schema::dropIfExists('users');
+        $tables = ['riwayat_pinjam', 'kategori_buku', 'profile', 'buku', 'kategori', 'users', 'failed_jobs', 'migrations', 'password_resets', 'personal_access_tokens'];
+        foreach ($tables as $table) {
+            Schema::dropIfExists($table);
+        }
         Schema::enableForeignKeyConstraints();
 
-        // 2. Buat Tabel USERS secara manual (Pondasi Utama)
+        // 2. Buat Tabel USERS
         Schema::create('users', function (Blueprint $table) {
             $table->id();
             $table->string('name');
             $table->string('email')->unique();
             $table->string('password');
-            $table->tinyInteger('isAdmin')->default(0); //
+            $table->tinyInteger('isAdmin')->default(0);
             $table->timestamps();
         });
 
-        // 3. Jalankan Migrasi Sisanya (Buku, Kategori, dll)
-        // Kita tidak pakai migrate:fresh karena tabel users sudah kita buat manual di atas
-        Artisan::call('migrate', ['--force' => true]);
+        // 3. Buat Tabel KATEGORI
+        Schema::create('kategori', function (Blueprint $table) {
+            $table->id();
+            $table->string('nama');
+            $table->text('deskripsi')->nullable();
+            $table->timestamps();
+        });
 
-        // 4. Buat Tabel PROFILE secara manual (Karena sering error di migration)
-        if (!Schema::hasTable('profile')) {
-            Schema::create('profile', function (Blueprint $table) {
-                $table->id();
-                $table->string('npm')->unique(); //
-                $table->string('prodi'); //
-                $table->string('alamat'); //
-                $table->string('noTelp'); //
-                $table->string('photoProfile')->nullable(); //
-                $table->unsignedBigInteger('users_id'); //
-                $table->foreign('users_id')->references('id')->on('users')->onDelete('cascade');
-                $table->timestamps();
-            });
-        }
+        // 4. Buat Tabel BUKU
+        Schema::create('buku', function (Blueprint $table) {
+            $table->id();
+            $table->string('kode_buku')->unique();
+            $table->string('judul');
+            $table->string('pengarang');
+            $table->string('penerbit');
+            $table->string('tahun_terbit');
+            $table->text('deskripsi');
+            $table->string('gambar')->nullable();
+            $table->string('status')->default('In Stock');
+            $table->timestamps();
+        });
 
-        // 5. Buat Akun Admin
+        // 5. Buat Tabel KATEGORI_BUKU (Relasi Buku ke Kategori)
+        Schema::create('kategori_buku', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('buku_id');
+            $table->unsignedBigInteger('kategori_id');
+            $table->foreign('buku_id')->references('id')->on('buku')->onDelete('cascade');
+            $table->foreign('kategori_id')->references('id')->on('kategori')->onDelete('cascade');
+            $table->timestamps();
+        });
+
+        // 6. Buat Tabel PROFILE
+        Schema::create('profile', function (Blueprint $table) {
+            $table->id();
+            $table->string('npm')->unique();
+            $table->string('prodi');
+            $table->string('alamat');
+            $table->string('noTelp');
+            $table->string('photoProfile')->nullable();
+            $table->unsignedBigInteger('users_id');
+            $table->foreign('users_id')->references('id')->on('users')->onDelete('cascade');
+            $table->timestamps();
+        });
+
+        // 7. Buat Tabel RIWAYAT_PINJAM
+        Schema::create('riwayat_pinjam', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('users_id');
+            $table->unsignedBigInteger('buku_id');
+            $table->date('tanggal_pinjam');
+            $table->date('tanggal_wajib_kembali');
+            $table->date('tanggal_pengembalian')->nullable();
+            $table->foreign('users_id')->references('id')->on('users')->onDelete('cascade');
+            $table->foreign('buku_id')->references('id')->on('buku')->onDelete('cascade');
+            $table->timestamps();
+        });
+
+        // 8. Isi data Admin & Kategori awal agar tidak kosong
         $admin = User::create([
             'name'     => 'Admin',
             'email'    => 'admin@gmail.com',
             'password' => Hash::make('password123'),
-            'isAdmin'  => 1 //
+            'isAdmin'  => 1
         ]);
 
-        // 6. Buat Profile Admin
         DB::table('profile')->insert([
-            'npm'          => 'admin',
-            'prodi'        => 'Admin Sistem',
-            'alamat'       => 'Perpustakaan Digital',
-            'noTelp'       => '08123456789',
-            'users_id'     => $admin->id, //
-            'created_at'   => now(),
-            'updated_at'   => now(),
+            'npm' => 'admin', 
+            'prodi' => 'Admin Sistem', 
+            'alamat' => 'Kampus', 
+            'noTelp' => '0812345', 
+            'users_id' => $admin->id, 
+            'created_at' => now()
+        ]);
+
+        DB::table('kategori')->insert([
+            ['nama' => 'Novel', 'created_at' => now()],
+            ['nama' => 'Pelajaran', 'created_at' => now()],
+            ['nama' => 'Pemrograman', 'created_at' => now()]
+        ]);
+
+        // 9. Isi data Buku awal (Contoh dari SQL kamu)
+        DB::table('buku')->insert([
+            [
+                'kode_buku' => 'LSK-01',
+                'judul' => 'Laskar Pelangi',
+                'pengarang' => 'Andrea Hirata',
+                'penerbit' => 'Bentang Pustaka',
+                'tahun_terbit' => '2005',
+                'deskripsi' => 'Kisah inspiratif anak-anak Belitung.',
+                'status' => 'In Stock',
+                'created_at' => now()
+            ],
+            [
+                'kode_buku' => 'HJN-01',
+                'judul' => 'Hujan',
+                'pengarang' => 'Tere Liye',
+                'penerbit' => 'Gramedia Pustaka',
+                'tahun_terbit' => '2016',
+                'deskripsi' => 'Kisah tentang persahabatan dan perpisahan.',
+                'status' => 'In Stock',
+                'created_at' => now()
+            ]
         ]);
         
-        return '<h1>✅ BERHASIL TOTAL!</h1> 
-                <p>Tabel Users & Profile dibuat manual untuk menghindari error relasi.</p>
-                <p>Login: <b>admin@gmail.com</b> / <b>password123</b></p>
+        return '<h1>✅ BERHASIL TOTAL & STRUKTUR LENGKAP!</h1> 
+                <p>Semua tabel dan data awal berhasil dipasang di Neon.</p>
                 <hr>
-                <a href="/" style="font-size: 20px; font-weight: bold; background: #28a745; color: white; padding: 12px; text-decoration: none;">➡️ LOGIN SEKARANG</a>';
+                <a href="/" style="font-size: 20px; font-weight: bold; background: #28a745; color: white; padding: 12px; text-decoration: none; border-radius: 5px; display: inline-block;">➡️ LOGIN SEKARANG</a>';
 
     } catch (\Exception $e) {
-        return '<h1 style="color:red">❌ Gagal Lagi!</h1>
-                <p>Pesan Error: ' . $e->getMessage() . '</p>';
+        return '<h1 style="color:red">❌ Gagal Lagi!</h1><p>' . $e->getMessage() . '</p>';
     }
 });
