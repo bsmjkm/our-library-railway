@@ -2,7 +2,7 @@
 
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Artisan; // Pastikan baris ini ada
+use Illuminate\Support\Facades\Artisan; // Wajib ada
 use App\Http\Controllers\BukuController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\AnggotaController;
@@ -52,26 +52,26 @@ Route::middleware(['auth'])->group(function () {
 
 });
 
-// --- 👇 JURUS DARURAT MIGRATION (VERSI RESET TOTAL) 👇 ---
-// Link ini akan MENGHAPUS semua tabel dan MEMBUAT ULANG dari nol.
+// --- 👇 JURUS DARURAT MIGRATION + SEEDER (PAKET LENGKAP) 👇 ---
 Route::get('/migrasi-darurat', function () {
     try {
-        // 1. Bersihkan cache config agar tidak nyangkut
+        // 1. Bersihkan Cache
         Artisan::call('config:clear');
         
-        // 2. Jalankan migrate:fresh (Hapus semua tabel & buat ulang)
+        // 2. RESET DATABASE (Hapus semua & Buat Ulang)
         Artisan::call('migrate:fresh', ['--force' => true]);
         
-        // 3. (Opsional) Jika kamu punya seeder, aktifkan baris di bawah ini:
-        // Artisan::call('db:seed', ['--force' => true]);
-
-        return '<h1>✅ SUKSES RESET DATABASE!</h1> 
-                <p>Database berhasil di-reset total. Tabel users, buku, dll sudah dibuat ulang.</p> 
+        // 3. ISI DATA (Jalankan Seeder) <-- INI SUDAH SAYA AKTIFKAN
+        Artisan::call('db:seed', ['--force' => true]); 
+        
+        return '<h1>✅ SUKSES RESET & SEEDING!</h1> 
+                <p>Tabel sudah dibuat ulang DAN Data awal (Seeder) sudah diisi.</p> 
                 <hr>
+                <p><b>Output System:</b></p>
                 <pre>' . Artisan::output() . '</pre>
                 <br> 
-                <a href="/register" style="font-size: 20px; font-weight: bold;">➡️ KLIK DISINI UNTUK REGISTER</a>';
+                <a href="/" style="font-size: 20px; font-weight: bold; background: green; color: white; padding: 10px; text-decoration: none;">➡️ KLIK DISINI UNTUK LOGIN</a>';
     } catch (\Exception $e) {
-        return '❌ Gagal: ' . $e->getMessage();
+        return '<h1>❌ Gagal!</h1><p>' . $e->getMessage() . '</p>';
     }
 });
