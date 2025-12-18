@@ -18,12 +18,6 @@ use App\Http\Controllers\CetakLaporanController;
 use App\Http\Controllers\PengembalianController;
 use App\Http\Controllers\RiwayatPinjamController;
 
-/*
-|--------------------------------------------------------------------------
-| Web Routes
-|--------------------------------------------------------------------------
-*/
-
 Route::get('/', function () {
     return view('auth.login');
 });
@@ -42,72 +36,77 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/pengembalian', [PengembalianController::class,'pengembalian']);
 });
 
-// --- 👇 JURUS PAMUNGKAS: RESET + FIX STRUKTUR SQL 👇 ---
+// --- 👇 JURUS ANTI-GAGAL: BUAT TABEL MANUAL SATU PER SATU 👇 ---
 Route::get('/migrasi-darurat', function () {
     try {
-        // 1. Bersihkan Cache agar settingan terbaru terbaca
         Artisan::call('config:clear');
-        
-        // 2. Jalankan migrasi standar (Membuat tabel users, buku, kategori, dll)
-        Artisan::call('migrate:fresh', ['--force' => true]);
 
-        // 3. Tambahkan kolom isAdmin ke tabel users (Sesuai SQL kamu)
-        if (Schema::hasTable('users')) {
-            if (!Schema::hasColumn('users', 'isAdmin')) {
-                Schema::table('users', function (Blueprint $table) {
-                    $table->tinyInteger('isAdmin')->default(0);
-                });
-            }
-        }
+        // 1. Hapus tabel lama jika ada agar bersih (Urutan hapus harus benar karena ada relasi)
+        Schema::disableForeignKeyConstraints();
+        Schema::dropIfExists('profile');
+        Schema::dropIfExists('riwayat_pinjam');
+        Schema::dropIfExists('kategori_buku');
+        Schema::dropIfExists('buku');
+        Schema::dropIfExists('kategori');
+        Schema::dropIfExists('users');
+        Schema::enableForeignKeyConstraints();
 
-        // 4. Buat Tabel Profile (Sesuai kolom di SQL kamu: npm, prodi, alamat, noTelp, users_id)
+        // 2. Buat Tabel USERS secara manual (Pondasi Utama)
+        Schema::create('users', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->string('email')->unique();
+            $table->string('password');
+            $table->tinyInteger('isAdmin')->default(0); //
+            $table->timestamps();
+        });
+
+        // 3. Jalankan Migrasi Sisanya (Buku, Kategori, dll)
+        // Kita tidak pakai migrate:fresh karena tabel users sudah kita buat manual di atas
+        Artisan::call('migrate', ['--force' => true]);
+
+        // 4. Buat Tabel PROFILE secara manual (Karena sering error di migration)
         if (!Schema::hasTable('profile')) {
             Schema::create('profile', function (Blueprint $table) {
                 $table->id();
-                $table->string('npm')->unique();
-                $table->string('prodi');
-                $table->string('alamat');
-                $table->string('noTelp'); 
-                $table->string('photoProfile')->nullable();
-                $table->unsignedBigInteger('users_id'); // Menggunakan users_id sesuai file SQL
+                $table->string('npm')->unique(); //
+                $table->string('prodi'); //
+                $table->string('alamat'); //
+                $table->string('noTelp'); //
+                $table->string('photoProfile')->nullable(); //
+                $table->unsignedBigInteger('users_id'); //
                 $table->foreign('users_id')->references('id')->on('users')->onDelete('cascade');
                 $table->timestamps();
             });
         }
 
-        // 5. Buat Akun Admin Default
-        $admin = User::updateOrCreate(
-            ['email' => 'admin@gmail.com'],
-            [
-                'name'     => 'Admin',
-                'password' => Hash::make('password123'),
-                'isAdmin'  => 1
-            ]
-        );
+        // 5. Buat Akun Admin
+        $admin = User::create([
+            'name'     => 'Admin',
+            'email'    => 'admin@gmail.com',
+            'password' => Hash::make('password123'),
+            'isAdmin'  => 1 //
+        ]);
 
-        // 6. Buat Data Profile Admin (Agar saat login tidak error mencari relasi profile)
-        DB::table('profile')->updateOrInsert(
-            ['users_id' => $admin->id],
-            [
-                'npm'          => 'admin',
-                'prodi'        => 'Admin Sistem',
-                'alamat'       => 'Perpustakaan Digital',
-                'noTelp'       => '08123456789',
-                'photoProfile' => null,
-                'created_at'   => now(),
-                'updated_at'   => now(),
-            ]
-        );
+        // 6. Buat Profile Admin
+        DB::table('profile')->insert([
+            'npm'          => 'admin',
+            'prodi'        => 'Admin Sistem',
+            'alamat'       => 'Perpustakaan Digital',
+            'noTelp'       => '08123456789',
+            'users_id'     => $admin->id, //
+            'created_at'   => now(),
+            'updated_at'   => now(),
+        ]);
         
         return '<h1>✅ BERHASIL TOTAL!</h1> 
-                <p>Database telah di-reset dan disesuaikan dengan struktur SQL kamu.</p>
-                <p>Akun Login: <b>admin@gmail.com</b> / Password: <b>password123</b></p>
+                <p>Tabel Users & Profile dibuat manual untuk menghindari error relasi.</p>
+                <p>Login: <b>admin@gmail.com</b> / <b>password123</b></p>
                 <hr>
-                <a href="/" style="font-size: 20px; font-weight: bold; background: #28a745; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;">➡️ KE HALAMAN LOGIN</a>';
+                <a href="/" style="font-size: 20px; font-weight: bold; background: #28a745; color: white; padding: 12px; text-decoration: none;">➡️ LOGIN SEKARANG</a>';
 
     } catch (\Exception $e) {
         return '<h1 style="color:red">❌ Gagal Lagi!</h1>
-                <p>Pesan Error: ' . $e->getMessage() . '</p>
-                <p><i>Pastikan file migrations di folder database/migrations sudah benar.</i></p>';
+                <p>Pesan Error: ' . $e->getMessage() . '</p>';
     }
 });
