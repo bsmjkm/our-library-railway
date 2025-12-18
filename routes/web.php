@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Artisan; // <-- SAYA TAMBAHKAN INI
 use App\Http\Controllers\BukuController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\AnggotaController;
@@ -26,6 +27,7 @@ use App\Http\Controllers\RiwayatPinjamController;
 Route::get('/', function () {
     return view('auth.login');
 });
+
 Auth::routes();
 
 Route::middleware(['auth'])->group(function () {
@@ -48,4 +50,14 @@ Route::middleware(['auth'])->group(function () {
 
     Route::post('/pengembalian', [PengembalianController::class,'pengembalian']);
 
+});
+
+// --- 👇 JURUS DARURAT MIGRATION (Tambahan Saya) 👇 ---
+Route::get('/migrasi-darurat', function () {
+    try {
+        Artisan::call('migrate', ['--force' => true]);
+        return '<h1>✅ SUKSES!</h1> <p>Tabel Database berhasil dibuat otomatis.</p> <br> <a href="/register">Klik Disini untuk Register</a>';
+    } catch (\Exception $e) {
+        return '❌ Gagal: ' . $e->getMessage();
+    }
 });
