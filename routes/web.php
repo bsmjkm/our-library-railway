@@ -2,7 +2,7 @@
 
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Artisan; // <-- SAYA TAMBAHKAN INI
+use Illuminate\Support\Facades\Artisan; // Pastikan baris ini ada
 use App\Http\Controllers\BukuController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\AnggotaController;
@@ -52,11 +52,25 @@ Route::middleware(['auth'])->group(function () {
 
 });
 
-// --- 👇 JURUS DARURAT MIGRATION (Tambahan Saya) 👇 ---
+// --- 👇 JURUS DARURAT MIGRATION (VERSI RESET TOTAL) 👇 ---
+// Link ini akan MENGHAPUS semua tabel dan MEMBUAT ULANG dari nol.
 Route::get('/migrasi-darurat', function () {
     try {
-        Artisan::call('migrate', ['--force' => true]);
-        return '<h1>✅ SUKSES!</h1> <p>Tabel Database berhasil dibuat otomatis.</p> <br> <a href="/register">Klik Disini untuk Register</a>';
+        // 1. Bersihkan cache config agar tidak nyangkut
+        Artisan::call('config:clear');
+        
+        // 2. Jalankan migrate:fresh (Hapus semua tabel & buat ulang)
+        Artisan::call('migrate:fresh', ['--force' => true]);
+        
+        // 3. (Opsional) Jika kamu punya seeder, aktifkan baris di bawah ini:
+        // Artisan::call('db:seed', ['--force' => true]);
+
+        return '<h1>✅ SUKSES RESET DATABASE!</h1> 
+                <p>Database berhasil di-reset total. Tabel users, buku, dll sudah dibuat ulang.</p> 
+                <hr>
+                <pre>' . Artisan::output() . '</pre>
+                <br> 
+                <a href="/register" style="font-size: 20px; font-weight: bold;">➡️ KLIK DISINI UNTUK REGISTER</a>';
     } catch (\Exception $e) {
         return '❌ Gagal: ' . $e->getMessage();
     }
