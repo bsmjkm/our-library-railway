@@ -42,72 +42,72 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/pengembalian', [PengembalianController::class,'pengembalian']);
 });
 
-// --- 👇 JURUS FINAL: SESUAI SQL ASLI 👇 ---
+// --- 👇 JURUS PAMUNGKAS: RESET + FIX STRUKTUR SQL 👇 ---
 Route::get('/migrasi-darurat', function () {
     try {
+        // 1. Bersihkan Cache agar settingan terbaru terbaca
         Artisan::call('config:clear');
         
-        // 1. Reset Database (Hapus Semua)
+        // 2. Jalankan migrasi standar (Membuat tabel users, buku, kategori, dll)
         Artisan::call('migrate:fresh', ['--force' => true]);
 
-        // 2. 🛠️ PASTIKAN KOLOM 'isAdmin' DI TABEL USERS ADA
-        if (!Schema::hasColumn('users', 'isAdmin')) {
-            Schema::table('users', function (Blueprint $table) {
-                $table->tinyInteger('isAdmin')->default(0);
-            });
+        // 3. Tambahkan kolom isAdmin ke tabel users (Sesuai SQL kamu)
+        if (Schema::hasTable('users')) {
+            if (!Schema::hasColumn('users', 'isAdmin')) {
+                Schema::table('users', function (Blueprint $table) {
+                    $table->tinyInteger('isAdmin')->default(0);
+                });
+            }
         }
 
-        // 3. 🛠️ BANGUN TABEL PROFILE (PERSIS SESUAI SQL KAMU)
+        // 4. Buat Tabel Profile (Sesuai kolom di SQL kamu: npm, prodi, alamat, noTelp, users_id)
         if (!Schema::hasTable('profile')) {
             Schema::create('profile', function (Blueprint $table) {
                 $table->id();
                 $table->string('npm')->unique();
-                $table->string('prodi');       // <-- Wajib ada
+                $table->string('prodi');
                 $table->string('alamat');
-                $table->string('noTelp');      // <-- Perhatikan huruf besar T
+                $table->string('noTelp'); 
                 $table->string('photoProfile')->nullable();
-                $table->unsignedBigInteger('users_id'); // <-- PENTING: users_id (bukan user_id)
+                $table->unsignedBigInteger('users_id'); // Menggunakan users_id sesuai file SQL
                 $table->foreign('users_id')->references('id')->on('users')->onDelete('cascade');
                 $table->timestamps();
             });
         }
 
-        // 4. Buat Akun Admin (Sesuai SQL)
-        // Cek dulu apakah user admin sudah ada, kalau belum buat baru
-        $admin = User::where('email', 'admin@gmail.com')->first();
-        if (!$admin) {
-            $admin = User::forceCreate([
+        // 5. Buat Akun Admin Default
+        $admin = User::updateOrCreate(
+            ['email' => 'admin@gmail.com'],
+            [
                 'name'     => 'Admin',
-                'email'    => 'admin@gmail.com',
-                'password' => Hash::make('password123'), // Password default
+                'password' => Hash::make('password123'),
                 'isAdmin'  => 1
-            ]);
-        }
+            ]
+        );
 
-        // 5. Buat Profile Admin (Wajib biar tidak error saat login)
-        // Cek apakah profile untuk admin ini sudah ada
-        $cekProfile = DB::table('profile')->where('users_id', $admin->id)->first();
-        
-        if (!$cekProfile) {
-            DB::table('profile')->insert([
+        // 6. Buat Data Profile Admin (Agar saat login tidak error mencari relasi profile)
+        DB::table('profile')->updateOrInsert(
+            ['users_id' => $admin->id],
+            [
                 'npm'          => 'admin',
-                'prodi'        => 'Sistem Informasi',
-                'alamat'       => 'Ruang Admin',
+                'prodi'        => 'Admin Sistem',
+                'alamat'       => 'Perpustakaan Digital',
                 'noTelp'       => '08123456789',
-                'photoProfile' => 'default.jpg',
-                'users_id'     => $admin->id,
+                'photoProfile' => null,
                 'created_at'   => now(),
                 'updated_at'   => now(),
-            ]);
-        }
+            ]
+        );
         
-        return '<h1>✅ SUKSES FULL (SESUAI SQL)!</h1> 
-                <p>Tabel Profile berhasil dibuat dengan struktur: users_id, prodi, noTelp, dll.</p>
-                <p>Akun Admin Siap: <b>admin@gmail.com</b> / <b>password123</b></p>
+        return '<h1>✅ BERHASIL TOTAL!</h1> 
+                <p>Database telah di-reset dan disesuaikan dengan struktur SQL kamu.</p>
+                <p>Akun Login: <b>admin@gmail.com</b> / Password: <b>password123</b></p>
                 <hr>
-                <a href="/" style="font-size: 20px; font-weight: bold; background: #28a745; color: white; padding: 10px; text-decoration: none; border-radius: 5px;">➡️ LOGIN SEKARANG</a>';
+                <a href="/" style="font-size: 20px; font-weight: bold; background: #28a745; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;">➡️ KE HALAMAN LOGIN</a>';
 
     } catch (\Exception $e) {
-        return '<h1 style="color:red">❌ Gagal!</h1><p>' . $e->getMessage() . '</p>';
+        return '<h1 style="color:red">❌ Gagal Lagi!</h1>
+                <p>Pesan Error: ' . $e->getMessage() . '</p>
+                <p><i>Pastikan file migrations di folder database/migrations sudah benar.</i></p>';
     }
 });
